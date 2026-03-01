@@ -59,7 +59,8 @@ const allowedOrigins = [
     'http://localhost:4173',
     'http://192.168.1.11:3001',
     'https://patelmanufacturing.com',
-    'https://admin.patelmanufacturing.com'
+    'https://admin.patelmanufacturing.com',
+    'https://api.patelmanufacturing.com'
 ];
 
 app.use(cors({
@@ -67,21 +68,26 @@ app.use(cors({
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
 
-        if (process.env.NODE_ENV === 'production') {
-            const isProductionDomain = /\.patelmanufacturing\.com$/.test(origin) || origin === 'https://patelmanufacturing.com';
-            if (isProductionDomain) {
-                return callback(null, true);
-            }
-        } else {
-            if (allowedOrigins.indexOf(origin) !== -1) {
-                return callback(null, true);
-            }
+        const originUrl = origin.toLowerCase();
+
+        // Production domain check with regex (case-insensitive, allows any subdomain and optional port)
+        const productionRegex = /^https?:\/\/([a-z0-9-]+\.)*patelmanufacturing\.com(:\d+)?$/i;
+
+        if (productionRegex.test(originUrl)) {
+            return callback(null, true);
         }
+
+        // Development origins check
+        if (allowedOrigins.some(o => o.toLowerCase() === originUrl)) {
+            return callback(null, true);
+        }
+
+        console.log(`❌ [CORS] Blocked Origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
     exposedHeaders: ['Authorization']
 }));
 
