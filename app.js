@@ -52,10 +52,33 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // 2. CORS Configuration
+const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://localhost:4173',
+    'http://192.168.1.11:3001',
+    'https://patelmanufacturing.com',
+    'https://admin.patelmanufacturing.com'
+];
+
 app.use(cors({
-    origin: process.env.NODE_ENV === 'production'
-        ? [/\.patelmanufacturing\.com$/, 'https://patelmanufacturing.com']
-        : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:4173', 'http://192.168.1.11:3001', 'https://patelmanufacturing.com', 'https://admin.patelmanufacturing.com'],
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        if (process.env.NODE_ENV === 'production') {
+            const isProductionDomain = /\.patelmanufacturing\.com$/.test(origin) || origin === 'https://patelmanufacturing.com';
+            if (isProductionDomain) {
+                return callback(null, true);
+            }
+        } else {
+            if (allowedOrigins.indexOf(origin) !== -1) {
+                return callback(null, true);
+            }
+        }
+        callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],

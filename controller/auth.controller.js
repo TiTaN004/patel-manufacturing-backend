@@ -25,7 +25,7 @@ export const login = catchAsync(async (req, res, next) => {
     const isMatch = await comparePassword(password, user.password);
 
     if (!isMatch) {
-        return sendResponse(res, 200, "Invalid credentials dsfdsfdsf", [], 0);
+        return sendResponse(res, 200, "Invalid credentials", [], 0);
     }
 
     const token = generateToken(
