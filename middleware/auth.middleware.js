@@ -26,11 +26,11 @@ export const authMiddleware = async (req, res, next) => {
         }
 
         // Single session check: verify token against DB
-        const [users] = await db.query("SELECT token FROM user WHERE userID = ?", [decoded.userID]);
-        if (users.length === 0 || users[0].token !== token) {
-            console.log('[AuthMiddleware] Session invalidated or user logged in elsewhere');
-            return res.status(401).json({ success: false, message: 'Unauthorized: Session invalidated' });
-        }
+        // const [users] = await db.query("SELECT token FROM user WHERE userID = ?", [decoded.userID]);
+        // if (users.length === 0 || users[0].token !== token) {
+        //     console.log('[AuthMiddleware] Session invalidated or user logged in elsewhere');
+        //     return res.status(401).json({ success: false, message: 'Unauthorized: Session invalidated' });
+        // }
 
         req.user = decoded;
         next();
