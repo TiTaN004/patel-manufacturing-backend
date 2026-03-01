@@ -16,7 +16,7 @@ export const createBulkMasterProductService = async (db, productData) => {
 
 export const getAllBulkMasterProductsService = async (db) => {
     const [rows] = await db.query(
-        "SELECT * FROM bulk_products WHERE is_master = 1 AND is_deleted = 0 ORDER BY created_at DESC"
+        "SELECT * FROM bulk_products WHERE is_master = 1 AND is_deleted = 0 ORDER BY (sr_no IS NULL OR sr_no = '') ASC, CAST(sr_no AS UNSIGNED) ASC, sr_no ASC"
     );
     return rows;
 };

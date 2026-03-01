@@ -138,7 +138,7 @@ export const getBulkProductsByUserService = async (db, userID) => {
          FROM bulk_products bp
          JOIN user_bulk_product_mapping ubpm ON bp.id = ubpm.bulkProductID
          WHERE ubpm.userID = ? AND bp.is_deleted = 0
-         ORDER BY bp.created_at DESC`,
+         ORDER BY (bp.sr_no IS NULL OR bp.sr_no = '') ASC, CAST(bp.sr_no AS UNSIGNED) ASC, bp.sr_no ASC`,
         [userID]
     );
     return rows;
@@ -343,33 +343,58 @@ export const getAllBulkOrdersService = async (db, limit = 20, offset = 0) => {
  * Update bulk order status
  */
 export const updateBulkOrderStatusService = async (db, id, status) => {
-    const [result] = await db.query(
-        "UPDATE bulk_orders SET order_status = ? WHERE id = ?",
-        [status, id]
-    );
-
-    if (result.affectedRows === 0) {
-        throw constructError("Bulk order not found", 404);
-    }
-
-    // Notify user about status update
+    const conn = await db.getConnection();
     try {
-        const [order] = await db.query("SELECT userID, invoice_number FROM bulk_orders WHERE id = ?", [id]);
-        if (order.length > 0) {
-            await notificationService.sendNotification({
-                userId: order[0].userID,
-                title: "Order Status Updated",
-                message: `Your order ${order[0].invoice_number} is now ${status}.`,
-                type: "order",
-                referenceId: id,
-                pushOnly: true
-            });
-        }
-    } catch (notifyError) {
-        console.error("Failed to notify user about order status update:", notifyError);
-    }
+        await conn.beginTransaction();
 
-    return { id, status };
+        if (status && status.toLowerCase() === 'cancelled') {
+            // Delete order items first
+            await conn.query("DELETE FROM bulk_order_items WHERE order_id = ?", [id]);
+            // Delete order
+            const [result] = await conn.query("DELETE FROM bulk_orders WHERE id = ?", [id]);
+
+            if (result.affectedRows === 0) {
+                throw constructError("Bulk order not found", 404);
+            }
+
+            await conn.commit();
+            return { id, status: 'cancelled', deleted: true };
+        } else {
+            const [result] = await conn.query(
+                "UPDATE bulk_orders SET order_status = ? WHERE id = ?",
+                [status, id]
+            );
+
+            if (result.affectedRows === 0) {
+                throw constructError("Bulk order not found", 404);
+            }
+
+            // Notify user about status update
+            try {
+                const [order] = await db.query("SELECT userID, invoice_number FROM bulk_orders WHERE id = ?", [id]);
+                if (order.length > 0) {
+                    await notificationService.sendNotification({
+                        userId: order[0].userID,
+                        title: "Order Status Updated",
+                        message: `Your order ${order[0].invoice_number} is now ${status}.`,
+                        type: "order",
+                        referenceId: id,
+                        pushOnly: true
+                    });
+                }
+            } catch (notifyError) {
+                console.error("Failed to notify user about order status update:", notifyError);
+            }
+
+            await conn.commit();
+            return { id, status };
+        }
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
 };
 
 /**

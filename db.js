@@ -19,8 +19,15 @@ export const db = mysql2.createPool({
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
+    timezone: '+05:30',
     dateStrings: true
 });
+
+// Set session timezone to IST for all connections in the pool
+db.on('connection', (connection) => {
+    connection.query("SET time_zone = '+05:30'");
+});
+
 
 export const testConnection = async () => {
     try {
