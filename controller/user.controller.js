@@ -6,6 +6,7 @@ import {
     getBulkUserProductsService,
     upsertBulkOutstandingService
 } from "../services/bulk.service.js";
+import { hashPassword } from "../utils/hash.util.js";
 
 /**
  * Add or update outstanding amount for a bulk user
@@ -143,4 +144,50 @@ export const bulkUpdateUsers = catchAsync(async (req, res, next) => {
     } finally {
         connection.release();
     }
+});
+
+/**
+ * Update user details (sensitive fields like password, userName, isAdmin)
+ */
+export const updateUser = catchAsync(async (req, res, next) => {
+    const { userID, userName, password, isAdmin } = req.body;
+
+    if (!userID) {
+        return sendError(res, 400, "userID is required");
+    }
+
+    const updates = [];
+    const params = [];
+
+    if (userName !== undefined) {
+        updates.push("userName = ?");
+        params.push(userName);
+    }
+
+    if (password !== undefined && password !== "") {
+        const hashedPassword = await hashPassword(password);
+        updates.push("password = ?");
+        params.push(hashedPassword);
+    }
+
+    if (isAdmin !== undefined) {
+        updates.push("isAdmin = ?");
+        params.push(isAdmin ? 1 : 0);
+    }
+
+    if (updates.length === 0) {
+        return sendError(res, 400, "No fields to update");
+    }
+
+    params.push(userID);
+    const [result] = await db.query(
+        `UPDATE user SET ${updates.join(", ")} WHERE userID = ?`,
+        params
+    );
+
+    if (result.affectedRows === 0) {
+        return sendError(res, 404, "User not found");
+    }
+
+    return sendSuccess(res, "User updated successfully");
 });

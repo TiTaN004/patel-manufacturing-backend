@@ -52,10 +52,18 @@ export const login = catchAsync(async (req, res, next) => {
 });
 
 export const register = catchAsync(async (req, res, next) => {
-    const { fullName, userName, password, mobileNo, emailID, isActive = 1, isAdmin = 1, user_role = 'retail' } = req.body;
+    const { fullName, userName, password, mobileNo, emailID, isActive = 1, user_role = 'retail' } = req.body;
+    let { isAdmin = 0 } = req.body;
 
     if (!fullName || !userName || !password || !mobileNo) {
         return sendError(res, 400, "All fields are required", 0, null);
+    }
+
+    // Only admins can create another admin
+    if (isAdmin == 1) {
+        if (!req.user || !req.user.isAdmin) {
+            isAdmin = 0; // Force to non-admin if requester is not an admin
+        }
     }
 
     const [existing] = await db.query("SELECT COUNT(*) AS total FROM user WHERE userName = ? OR emailID = ?", [userName, emailID]);
