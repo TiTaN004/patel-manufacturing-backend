@@ -27,7 +27,7 @@ export const upsertOutstandingAmount = catchAsync(async (req, res, next) => {
  */
 export const getOutstandingAmounts = catchAsync(async (req, res, next) => {
     const [results] = await db.query(`
-        SELECT u.userID, u.fullName, u.emailID, u.mobileNo, COALESCE(bo.amount, 0) as outstanding_amount
+        SELECT u.userID, u.fullName,u.userName, u.emailID, u.mobileNo, COALESCE(bo.amount, 0) as outstanding_amount
         FROM user u
         LEFT JOIN bulk_user_outstanding bo ON u.userID = bo.userID
         WHERE u.user_role = 'bulk'
@@ -125,7 +125,7 @@ export const bulkUpdateUsers = catchAsync(async (req, res, next) => {
             if (!userID) continue;
 
             await connection.query(
-                `UPDATE user SET 
+                `UPDATE user SET
                     fullName = COALESCE(?, fullName),
                     mobileNo = COALESCE(?, mobileNo),
                     emailID = COALESCE(?, emailID),
@@ -190,4 +190,17 @@ export const updateUser = catchAsync(async (req, res, next) => {
     }
 
     return sendSuccess(res, "User updated successfully");
+});
+
+/**
+ * Get all admin users
+ */
+export const getAllAdminUsers = catchAsync(async (req, res, next) => {
+    const [results] = await db.query(`
+        SELECT userID, fullName, userName, emailID, mobileNo, isAdmin, isActive
+        FROM user
+        WHERE isAdmin = 1
+    `);
+
+    return sendSuccess(res, "Admin users retrieved successfully", results);
 });

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { upsertOutstandingAmount, getOutstandingAmounts, getOutstandingAmountByUserId, assignProductsToBulkUser, getBulkUserProducts, bulkUpdateUsers, updateUser } from '../controller/user.controller.js';
+import { upsertOutstandingAmount, getOutstandingAmounts, getOutstandingAmountByUserId, assignProductsToBulkUser, getBulkUserProducts, bulkUpdateUsers, updateUser, getAllAdminUsers } from '../controller/user.controller.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
 
 export const userRoute = Router();
@@ -18,6 +18,7 @@ const adminOrSelf = (req, res, next) => {
 // Admin only routes
 userRoute.post('/outstanding', authMiddleware, adminMiddleware, upsertOutstandingAmount);
 userRoute.get('/outstanding', authMiddleware, adminMiddleware, getOutstandingAmounts);
+userRoute.get('/admin-users', authMiddleware, adminMiddleware, getAllAdminUsers);
 
 // Admin or Self routes
 userRoute.get('/outstanding/:userID', authMiddleware, adminOrSelf, getOutstandingAmountByUserId);
