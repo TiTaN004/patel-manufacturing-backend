@@ -177,20 +177,18 @@ export const verifyOtp = catchAsync(async (req, res, next) => {
 
 export const logout = catchAsync(async (req, res, next) => {
     const userId = req.user.userID;
-    const { token } = req.body;
 
     // 1. Clear session token in DB
     await db.query("UPDATE user SET token = NULL WHERE userID = ?", [userId]);
 
-    // 2. Unregister FCM token if provided
-    if (token) {
-        try {
-            const { notificationService } = await import('../services/notification.service.js');
-            await notificationService.unregisterToken(token);
-        } catch (error) {
-            console.error('Logout: Failed to unregister FCM token:', error.message);
-            // Continue with logout even if token unregistration fails
-        }
+    // 2. Unregister ALL FCM tokens for the user
+    try {
+        const { notificationService } = await import('../services/notification.service.js');
+        await notificationService.unregisterUserTokens(userId);
+        console.log('Logout: Unregistered all FCM tokens for user:', userId);
+    } catch (error) {
+        console.error('Logout: Failed to unregister FCM tokens:', error.message);
+        // Continue with logout even if token unregistration fails
     }
 
     return sendSuccess(res, "Logged out successfully");

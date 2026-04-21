@@ -122,6 +122,19 @@ export const notificationService = {
     },
 
     /**
+     * Unregister all FCM tokens for a user
+     */
+    async unregisterUserTokens(userId) {
+        try {
+            await db.query(`DELETE FROM fcm_tokens WHERE user_id = ?`, [userId]);
+            return true;
+        } catch (error) {
+            console.error('Error in unregisterUserTokens:', error);
+            throw error;
+        }
+    },
+
+    /**
      * Get notifications for a user
      */
     async getUserNotifications(userId, limit = 20, offset = 0) {
