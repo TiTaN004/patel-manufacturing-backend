@@ -27,6 +27,7 @@ import { bulkOrderRoute } from "./routes/bulk_order.route.js";
 import bulkMasterRoute from "./routes/bulk_master.route.js";
 import bulkMasterProductRoute from "./routes/bulk_master_product.route.js";
 import { notificationRoute } from "./routes/notification.route.js";
+import { appRoute } from "./routes/app.route.js";
 import { sendError } from "./utils/response.util.js";
 import { db } from "./db.js";
 import { softAuthMiddleware } from "./middleware/auth.middleware.js";
@@ -117,6 +118,7 @@ app.use(`${BASE_URL}/bulk-order`, bulkOrderRoute);
 app.use(`${BASE_URL}/bulk-master`, bulkMasterRoute);
 app.use(`${BASE_URL}/bulk-master-product`, bulkMasterProductRoute);
 app.use(`${BASE_URL}/notifications`, notificationRoute);
+app.use(`${BASE_URL}/app`, appRoute);
 
 // 4.5 GraphQL Integration
 // const server = new ApolloServer({

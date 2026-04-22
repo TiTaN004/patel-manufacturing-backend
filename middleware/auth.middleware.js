@@ -1,5 +1,6 @@
-import { verifyToken } from '../utils/jwt.util.js';
+import { decodeToken, verifyToken } from '../utils/jwt.util.js';
 import { db } from '../db.js';
+import { unregisterToken } from '../controller/notification.controller.js';
 
 export const authMiddleware = async (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -22,6 +23,11 @@ export const authMiddleware = async (req, res, next) => {
         const decoded = verifyToken(token);
         if (!decoded) {
             console.log('[AuthMiddleware] Token verification failed');
+            // token has expired remove FCM token from DB
+            const userId = decodeToken(token);
+            if (userId?.userID) {
+                await unregisterToken(userId.userID);
+            }
             return res.status(401).json({ success: false, message: 'Unauthorized: Invalid token' });
         }
 

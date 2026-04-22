@@ -22,3 +22,16 @@ export const verifyToken = (token) => {
         return null;
     }
 };
+
+/**
+ * Decode a JWT token without verification
+ * @param {string} token - The token to decode
+ * @returns {Object|null} The decoded payload if valid, otherwise null
+ */
+export const decodeToken = (token) => {
+    try {
+        return jwt.decode(token);
+    } catch (error) {
+        return null;
+    }
+};
