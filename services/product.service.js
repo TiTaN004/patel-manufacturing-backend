@@ -194,6 +194,9 @@ export const updateProductService = async (db, id, {
         const updates = [];
         const values = [];
 
+        // After line 191 (imagesJson), add:
+        const primaryImageValue = primary_image === "" ? null : primary_image;
+
         if (category_id !== undefined) { updates.push("category_id = ?"); values.push(category_id); }
         if (sku !== undefined) { updates.push("sku = ?"); values.push(sku); }
         if (name !== undefined) { updates.push("name = ?"); values.push(name); }
@@ -203,7 +206,7 @@ export const updateProductService = async (db, id, {
         if (stock_quantity !== undefined) { updates.push("stock_quantity = ?"); values.push(stock_quantity); }
         if (stock_status !== undefined) { updates.push("stock_status = ?"); values.push(stock_status); }
         if (description !== undefined) { updates.push("description = ?"); values.push(description); }
-        if (primary_image !== undefined) { updates.push("primary_image = ?"); values.push(primary_image); }
+        if (primary_image !== undefined) { updates.push("primary_image = ?"); values.push(primaryImageValue); }
         if (images !== undefined) { updates.push("images = ?"); values.push(imagesJson); }
         if (stock_threshold !== undefined) { updates.push("stock_threshold = ?"); values.push(stock_threshold); }
         if (selling_price !== undefined) { updates.push("selling_price = ?"); values.push(selling_price); }
