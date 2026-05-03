@@ -1,12 +1,16 @@
 import { db } from "../db.js";
-import { generateToken, verifyToken as jwtVerify } from "../utils/jwt.util.js";
+import { generateToken, verifyToken as jwtVerify, generateTokenPair } from "../utils/jwt.util.js";
 import { hashPassword, comparePassword } from "../utils/hash.util.js";
 import { sendResponse, sendSuccess, sendError } from "../utils/response.util.js";
 import { catchAsync } from "../utils/error.util.js";
 import { sendOTP } from "../utils/email.service.js";
+import { createRefreshToken, rotateRefreshToken, revokeRefreshToken, revokeAllUserTokens, getUserSessions, revokeSessionById } from "../services/auth.service.js";
 
 export const login = catchAsync(async (req, res, next) => {
     const { userName, password } = req.body;
+    const deviceInfo = req.headers['x-device-info'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || '';
+    const ipAddress = req.ip || req.connection?.remoteAddress || 'unknown';
 
     if (!userName || !password) {
         return sendError(res, 400, "User Name and password are required");
@@ -28,13 +32,21 @@ export const login = catchAsync(async (req, res, next) => {
         return sendResponse(res, 200, "Invalid credentials", [], 0);
     }
 
-    const token = generateToken(
-        { sub: user.userName, jti: user.userID, userID: user.userID, UserId: String(user.userID), isAdmin: Boolean(user.isAdmin), fullName: user.fullName, user_role: user.user_role },
-        '24h'
-    );
+    const payload = {
+        sub: user.userName,
+        jti: user.userID,
+        userID: user.userID,
+        UserId: String(user.userID),
+        isAdmin: Boolean(user.isAdmin),
+        fullName: user.fullName,
+        user_role: user.user_role
+    };
 
-    // Update token in DB
-    await db.query("UPDATE user SET token = ? WHERE userID = ?", [token, user.userID]);
+    const { accessToken, refreshToken } = generateTokenPair(payload);
+
+    await createRefreshToken(db, user.userID, refreshToken, deviceInfo, userAgent, ipAddress);
+
+    await db.query("UPDATE user SET token = ? WHERE userID = ?", [accessToken, user.userID]);
 
     const responseData = {
         userID: Number(user.userID),
@@ -42,7 +54,8 @@ export const login = catchAsync(async (req, res, next) => {
         userName: user.userName,
         mobileNo: user.mobileNo,
         emailID: user.emailID,
-        token: token,
+        token: accessToken,
+        refreshToken: refreshToken,
         isActive: Boolean(user.isActive),
         isAdmin: Boolean(user.isAdmin),
         user_role: user.user_role
@@ -177,19 +190,60 @@ export const verifyOtp = catchAsync(async (req, res, next) => {
 
 export const logout = catchAsync(async (req, res, next) => {
     const userId = req.user.userID;
+    const { refreshToken } = req.body;
 
-    // 1. Clear session token in DB
+    if (refreshToken) {
+        await revokeRefreshToken(db, refreshToken);
+    }
+
     await db.query("UPDATE user SET token = NULL WHERE userID = ?", [userId]);
 
-    // 2. Unregister ALL FCM tokens for the user
     try {
         const { notificationService } = await import('../services/notification.service.js');
         await notificationService.unregisterUserTokens(userId);
         console.log('Logout: Unregistered all FCM tokens for user:', userId);
     } catch (error) {
         console.error('Logout: Failed to unregister FCM tokens:', error.message);
-        // Continue with logout even if token unregistration fails
     }
 
     return sendSuccess(res, "Logged out successfully");
+});
+
+export const refresh = catchAsync(async (req, res, next) => {
+    const { refreshToken } = req.body;
+    const deviceInfo = req.headers['x-device-info'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || '';
+    const ipAddress = req.ip || req.connection?.remoteAddress || 'unknown';
+
+    if (!refreshToken) {
+        return sendError(res, 400, "Refresh token is required");
+    }
+
+    const result = await rotateRefreshToken(db, refreshToken, deviceInfo, userAgent, ipAddress);
+
+    return sendSuccess(res, "Token refreshed successfully", [{
+        token: result.accessToken,
+        refreshToken: result.refreshToken
+    }]);
+});
+
+export const getSessions = catchAsync(async (req, res, next) => {
+    const userId = req.user.userID;
+    const sessions = await getUserSessions(db, userId);
+    return sendSuccess(res, "Sessions fetched successfully", sessions);
+});
+
+export const revokeSession = catchAsync(async (req, res, next) => {
+    const userId = req.user.userID;
+    const { id } = req.params;
+    const revoked = await revokeSessionById(db, userId, id);
+    if (!revoked) return sendError(res, 404, "Session not found");
+    return sendSuccess(res, "Session revoked successfully");
+});
+
+export const revokeAllSessions = catchAsync(async (req, res, next) => {
+    const userId = req.user.userID;
+    await revokeAllUserTokens(db, userId);
+    await db.query("UPDATE user SET token = NULL WHERE userID = ?", [userId]);
+    return sendSuccess(res, "All sessions revoked successfully");
 });

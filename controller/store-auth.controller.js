@@ -1,10 +1,11 @@
 import { db } from "../db.js";
-import { generateToken } from "../utils/jwt.util.js";
+import { generateToken, generateTokenPair } from "../utils/jwt.util.js";
 import { hashPassword, comparePassword } from "../utils/hash.util.js";
 import { sendResponse, sendSuccess, sendError } from "../utils/response.util.js";
 import { sendPasswordResetOTP } from "../utils/email.service.js";
 import { catchAsync } from "../utils/error.util.js";
 import { OAuth2Client } from "google-auth-library";
+import { createRefreshToken, rotateRefreshToken, revokeRefreshToken, revokeAllUserTokens, getUserSessions, revokeSessionById } from "../services/auth.service.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -48,6 +49,9 @@ export const register = catchAsync(async (req, res, next) => {
 
 export const googleLogin = catchAsync(async (req, res, next) => {
     const { idToken } = req.body;
+    const deviceInfo = req.headers['x-device-info'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || '';
+    const ipAddress = req.ip || req.connection?.remoteAddress || 'unknown';
 
     if (!idToken) {
         return sendError(res, 400, "ID Token is required");
@@ -66,7 +70,6 @@ export const googleLogin = catchAsync(async (req, res, next) => {
 
     const { sub: googleId, email, name, picture } = payload;
 
-    // 1. Check if user with googleId exists
     let [users] = await db.query(
         `SELECT u.*, COALESCE(bo.amount, 0) as outstanding_amount 
          FROM user u 
@@ -77,7 +80,6 @@ export const googleLogin = catchAsync(async (req, res, next) => {
 
     let user;
     if (users.length === 0) {
-        // 2. Check if user with email exists
         [users] = await db.query(
             `SELECT u.*, COALESCE(bo.amount, 0) as outstanding_amount 
              FROM user u 
@@ -87,11 +89,9 @@ export const googleLogin = catchAsync(async (req, res, next) => {
         );
 
         if (users.length > 0) {
-            // Update existing user with googleId
             user = users[0];
             await db.query("UPDATE user SET googleId = ? WHERE userID = ?", [googleId, user.userID]);
         } else {
-            // Create new user
             const [result] = await db.query(
                 "INSERT INTO user (fullName, userName, emailID, googleId, isActive, isAdmin, user_role) VALUES (?, ?, ?, ?, 1, 0, 'retail')",
                 [name, email, email, googleId]
@@ -107,20 +107,21 @@ export const googleLogin = catchAsync(async (req, res, next) => {
         user = users[0];
     }
 
-    const token = generateToken(
-        {
-            sub: user.emailID,
-            jti: user.userID,
-            userID: user.userID,
-            UserId: String(user.userID),
-            isAdmin: false,
-            fullName: user.fullName,
-            user_role: user.user_role
-        },
-        '24h'
-    );
+    const tokenPayload = {
+        sub: user.emailID,
+        jti: user.userID,
+        userID: user.userID,
+        UserId: String(user.userID),
+        isAdmin: false,
+        fullName: user.fullName,
+        user_role: user.user_role
+    };
 
-    await db.query("UPDATE user SET token = ? WHERE userID = ?", [token, user.userID]);
+    const { accessToken, refreshToken } = generateTokenPair(tokenPayload);
+
+    await createRefreshToken(db, user.userID, refreshToken, deviceInfo, userAgent, ipAddress);
+
+    await db.query("UPDATE user SET token = ? WHERE userID = ?", [accessToken, user.userID]);
 
     const responseData = {
         userID: Number(user.userID),
@@ -132,7 +133,8 @@ export const googleLogin = catchAsync(async (req, res, next) => {
         zipcode: user.zipcode,
         city: user.city,
         state: user.state,
-        token: token,
+        token: accessToken,
+        refreshToken: refreshToken,
         isActive: true,
         isAdmin: false,
         user_role: user.user_role,
@@ -145,6 +147,9 @@ export const googleLogin = catchAsync(async (req, res, next) => {
 
 export const login = catchAsync(async (req, res, next) => {
     const { emailID, password } = req.body;
+    const deviceInfo = req.headers['x-device-info'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || '';
+    const ipAddress = req.ip || req.connection?.remoteAddress || 'unknown';
 
     if (!emailID || !password) {
         return sendError(res, 400, "Email and password are required");
@@ -169,12 +174,21 @@ export const login = catchAsync(async (req, res, next) => {
         return sendResponse(res, 200, "Invalid credentials", [], 0);
     }
 
-    const token = generateToken(
-        { sub: user.emailID, jti: user.userID, userID: user.userID, UserId: String(user.userID), isAdmin: false, fullName: user.fullName, user_role: user.user_role },
-        '24h'
-    );
+    const payload = {
+        sub: user.emailID,
+        jti: user.userID,
+        userID: user.userID,
+        UserId: String(user.userID),
+        isAdmin: false,
+        fullName: user.fullName,
+        user_role: user.user_role
+    };
 
-    await db.query("UPDATE user SET token = ? WHERE userID = ?", [token, user.userID]);
+    const { accessToken, refreshToken } = generateTokenPair(payload);
+
+    await createRefreshToken(db, user.userID, refreshToken, deviceInfo, userAgent, ipAddress);
+
+    await db.query("UPDATE user SET token = ? WHERE userID = ?", [accessToken, user.userID]);
 
     const responseData = {
         userID: Number(user.userID),
@@ -186,7 +200,8 @@ export const login = catchAsync(async (req, res, next) => {
         zipcode: user.zipcode,
         city: user.city,
         state: user.state,
-        token: token,
+        token: accessToken,
+        refreshToken: refreshToken,
         isActive: true,
         isAdmin: false,
         user_role: user.user_role,
@@ -324,4 +339,63 @@ export const resetPassword = catchAsync(async (req, res, next) => {
     await db.query("DELETE FROM password_reset_tokens WHERE userID = ?", [user.userID]);
 
     return sendSuccess(res, "Password reset successful", null, 1);
+});
+
+export const refresh = catchAsync(async (req, res, next) => {
+    const { refreshToken } = req.body;
+    const deviceInfo = req.headers['x-device-info'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || '';
+    const ipAddress = req.ip || req.connection?.remoteAddress || 'unknown';
+
+    if (!refreshToken) {
+        return sendError(res, 400, "Refresh token is required");
+    }
+
+    const result = await rotateRefreshToken(db, refreshToken, deviceInfo, userAgent, ipAddress);
+
+    return sendSuccess(res, "Token refreshed successfully", [{
+        token: result.accessToken,
+        refreshToken: result.refreshToken
+    }]);
+});
+
+export const logout = catchAsync(async (req, res, next) => {
+    const userId = req.user.userID;
+    const { refreshToken } = req.body;
+
+    if (refreshToken) {
+        await revokeRefreshToken(db, refreshToken);
+    }
+
+    await db.query("UPDATE user SET token = NULL WHERE userID = ?", [userId]);
+
+    try {
+        const { notificationService } = await import('../services/notification.service.js');
+        await notificationService.unregisterUserTokens(userId);
+    } catch (error) {
+        console.error('Logout: Failed to unregister FCM tokens:', error.message);
+    }
+
+    return sendSuccess(res, "Logged out successfully");
+});
+
+export const getSessions = catchAsync(async (req, res, next) => {
+    const userId = req.user.userID;
+    const sessions = await getUserSessions(db, userId);
+    return sendSuccess(res, "Sessions fetched successfully", sessions);
+});
+
+export const revokeSession = catchAsync(async (req, res, next) => {
+    const userId = req.user.userID;
+    const { id } = req.params;
+    const revoked = await revokeSessionById(db, userId, id);
+    if (!revoked) return sendError(res, 404, "Session not found");
+    return sendSuccess(res, "Session revoked successfully");
+});
+
+export const revokeAllSessions = catchAsync(async (req, res, next) => {
+    const userId = req.user.userID;
+    await revokeAllUserTokens(db, userId);
+    await db.query("UPDATE user SET token = NULL WHERE userID = ?", [userId]);
+    return sendSuccess(res, "All sessions revoked successfully");
 });
