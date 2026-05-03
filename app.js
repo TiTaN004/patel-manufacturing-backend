@@ -86,9 +86,10 @@ app.use(cors({
         console.log(`❌ [CORS] Blocked Origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
     },
+    // origin: "*",
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'X-Device-Info'],
     exposedHeaders: ['Authorization']
 }));
 
