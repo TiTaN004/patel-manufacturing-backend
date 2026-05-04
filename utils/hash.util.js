@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 /**
  * Hash a password
@@ -18,4 +19,13 @@ export const hashPassword = async (password) => {
  */
 export const comparePassword = async (password, hash) => {
     return await bcrypt.compare(password, hash);
+};
+
+/**
+ * Hash a token using SHA-256 (deterministic)
+ * @param {string} token - The plain text token
+ * @returns {string} The hashed token
+ */
+export const hashToken = (token) => {
+    return crypto.createHash('sha256').update(token).digest('hex');
 };

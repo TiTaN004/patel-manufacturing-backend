@@ -6,6 +6,7 @@ import {
     getBulkUserProductsService,
     upsertBulkOutstandingService
 } from "../services/bulk.service.js";
+import { softDeleteBulkUser } from "../services/auth.service.js";
 import { hashPassword } from "../utils/hash.util.js";
 
 /**
@@ -203,4 +204,18 @@ export const getAllAdminUsers = catchAsync(async (req, res, next) => {
     `);
 
     return sendSuccess(res, "Admin users retrieved successfully", results);
+});
+
+/**
+ * Delete a bulk user (soft delete with 30-day auto hard delete)
+ */
+export const deleteBulkUser = catchAsync(async (req, res, next) => {
+    const { userID } = req.params;
+
+    if (!userID) {
+        return sendError(res, 400, "userID is required");
+    }
+
+    const result = await softDeleteBulkUser(db, userID);
+    return sendSuccess(res, result.message, result);
 });

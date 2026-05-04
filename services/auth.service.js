@@ -1,8 +1,9 @@
 import crypto from 'crypto';
 import { db } from "../db.js";
-import { hashPassword } from "../utils/hash.util.js";
+import { hashPassword, hashToken } from "../utils/hash.util.js";
 import { verifyRefreshToken, generateTokenPair } from "../utils/jwt.util.js";
 import { encrypt } from "../utils/encryption.util.js";
+import { constructError } from "../utils/error.util.js";
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 30;
 
@@ -14,7 +15,7 @@ const getRefreshTokenExpiry = () => {
  * Create new refresh token (called on login)
  */
 export const createRefreshToken = async (db, userId, token, deviceInfo, userAgent, ipAddress) => {
-    const tokenHash = await hashPassword(token);
+    const tokenHash = hashToken(token);
     const encryptedToken = encrypt(token);
     const tokenFamily = crypto.randomUUID();
     const expiresAt = getRefreshTokenExpiry();
@@ -41,13 +42,12 @@ export const rotateRefreshToken = async (db, refreshToken, deviceInfo, userAgent
 
     const userId = decoded.userID;
 
-    const tokenHash = await hashPassword(refreshToken);
+    const tokenHash = hashToken(refreshToken);
     const [tokens] = await db.query(
         `SELECT * FROM refresh_tokens 
          WHERE user_id = ? AND token_hash = ? AND revoked_at IS NULL AND expires_at > NOW()`,
         [userId, tokenHash]
     );
-
     if (tokens.length === 0) {
         throw new Error("Refresh token not found or expired");
     }
@@ -96,7 +96,7 @@ export const revokeRefreshToken = async (db, refreshToken) => {
     const decoded = verifyRefreshToken(refreshToken);
     if (!decoded) return null;
 
-    const tokenHash = await hashPassword(refreshToken);
+    const tokenHash = hashToken(refreshToken);
     await db.query(
         `UPDATE refresh_tokens SET revoked_at = NOW() 
          WHERE user_id = ? AND token_hash = ?`,
@@ -139,4 +139,77 @@ export const revokeSessionById = async (db, userId, sessionId) => {
         [sessionId, userId]
     );
     return result.affectedRows > 0;
+};
+
+/**
+ * Soft delete a bulk user (admin only)
+ * Deletes all associated data and marks user for deletion
+ */
+export const softDeleteBulkUser = async (db, userId) => {
+    const conn = await db.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        // 1. Verify user is bulk user and not already deleted
+        const [users] = await conn.query(
+            "SELECT userID, user_role FROM user WHERE userID = ? AND user_role = 'bulk' AND deleted_at IS NULL",
+            [userId]
+        );
+
+        if (users.length === 0) {
+            throw constructError("Bulk user not found or already deleted", 404);
+        }
+
+        // 2. Delete associated data in order
+
+        // Bulk order items (via join)
+        await conn.query(
+            "DELETE boi FROM bulk_order_items boi JOIN bulk_orders bo ON boi.order_id = bo.id WHERE bo.userID = ?",
+            [userId]
+        );
+
+        // Bulk orders
+        await conn.query("DELETE FROM bulk_orders WHERE userID = ?", [userId]);
+
+        // Product mappings
+        await conn.query("DELETE FROM user_bulk_product_mapping WHERE userID = ?", [userId]);
+        await conn.query("DELETE FROM bulk_user_products WHERE userID = ?", [userId]);
+
+        // Outstanding amount
+        await conn.query("DELETE FROM bulk_user_outstanding WHERE userID = ?", [userId]);
+
+        // Notifications
+        await conn.query("DELETE FROM notifications WHERE user_id = ?", [userId]);
+        await conn.query("DELETE FROM fcm_tokens WHERE user_id = ?", [userId]);
+
+        // Refresh tokens
+        await conn.query("UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = ?", [userId]);
+
+        // 3. Soft delete user
+        const now = new Date();
+        const scheduledDeletion = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        await conn.query(
+            "UPDATE user SET deleted_at = ?, scheduled_deletion_at = ? WHERE userID = ?",
+            [now, scheduledDeletion, userId]
+        );
+
+        // 4. Record for tracking
+        await conn.query(
+            "INSERT INTO pending_user_deletions (user_id, deleted_at, hard_delete_at) VALUES (?, ?, ?)",
+            [userId, now, scheduledDeletion]
+        );
+
+        await conn.commit();
+
+        return {
+            message: "User deleted successfully",
+            scheduledHardDelete: scheduledDeletion
+        };
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
 };

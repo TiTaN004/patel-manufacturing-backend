@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { upsertOutstandingAmount, getOutstandingAmounts, getOutstandingAmountByUserId, assignProductsToBulkUser, getBulkUserProducts, bulkUpdateUsers, updateUser, getAllAdminUsers } from '../controller/user.controller.js';
+import { upsertOutstandingAmount, getOutstandingAmounts, getOutstandingAmountByUserId, assignProductsToBulkUser, getBulkUserProducts, bulkUpdateUsers, updateUser, getAllAdminUsers, deleteBulkUser } from '../controller/user.controller.js';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware.js';
 
 export const userRoute = Router();
@@ -32,3 +32,6 @@ userRoute.put('/bulk-update', authMiddleware, adminMiddleware, bulkUpdateUsers);
 
 // Admin only for single user update (sensitive fields)
 userRoute.put('/update', authMiddleware, adminMiddleware, updateUser);
+
+// Admin only for bulk user delete (soft delete with 30-day auto hard delete)
+userRoute.delete('/bulk-user/:userID', authMiddleware, adminMiddleware, deleteBulkUser);
