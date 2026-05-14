@@ -1,0 +1,11 @@
+[2026-05-14 16:33:40] 🚀 Starting bulk user cleanup...
+[2026-05-14 16:33:40] ✅ .env loaded
+[2026-05-14 16:33:40] ✅ Database connected
+[2026-05-14 16:33:40] 📦 Found 1 users to delete
+[2026-05-14 16:33:40] 👤 User 32: TestBulkCleanup (testclean@bulk.com) - Soft deleted: 2026-04-14 11:02:36, Scheduled: 2026-05-14 11:02:36
+[2026-05-14 16:33:40] 🗑️  Removed 1 records from pending_user_deletions
+[2026-05-14 16:33:40] 🗑️  Hard deleted 1 users
+[2026-05-14 16:33:40] ✅ Transaction committed
+[2026-05-14 16:33:40] 📧 Completion email sent to: mananrathod45@gmail.com
+[2026-05-14 16:33:40] 📧 Completion emails sent to 1 of 2 admins
+[2026-05-14 16:33:40] ✅ Cleanup completed successfully

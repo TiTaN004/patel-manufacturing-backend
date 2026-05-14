@@ -237,13 +237,19 @@ export const createBulkOrderService = async (db, orderData) => {
             const [users] = await conn.query("SELECT fullName FROM user WHERE userID = ?", [userID]);
             const partyName = users.length > 0 ? users[0].fullName : "Unknown Party";
 
-            // Get product names and quantities for the message
+            // Get product names, quantities, and images for the message
             const productIds = items.map(i => i.bulk_product_id);
-            const [products] = await conn.query("SELECT id, box_name FROM bulk_products WHERE id IN (?)", [productIds]);
+            const [products] = await conn.query("SELECT id, box_name, product_image FROM bulk_products WHERE id IN (?)", [productIds]);
             const productMap = products.reduce((acc, p) => {
                 acc[p.id] = p.box_name;
                 return acc;
             }, {});
+            const imageMap = products.reduce((acc, p) => {
+                if (p.product_image) acc[p.id] = p.product_image;
+                return acc;
+            }, {});
+            const firstItemWithImage = items.find(item => imageMap[item.bulk_product_id]);
+            const firstProductImage = firstItemWithImage ? imageMap[firstItemWithImage.bulk_product_id] : null;
 
             const itemString = items.map(item => {
                 const name = productMap[item.bulk_product_id] || "Product";
@@ -260,7 +266,8 @@ export const createBulkOrderService = async (db, orderData) => {
                     message: messageBody,
                     type: "order",
                     referenceId: orderId,
-                    pushOnly: true
+                    pushOnly: true,
+                    imageUrl: firstProductImage
                 });
             }
         } catch (notifyError) {
@@ -373,13 +380,23 @@ export const updateBulkOrderStatusService = async (db, id, status) => {
             try {
                 const [order] = await db.query("SELECT userID, invoice_number FROM bulk_orders WHERE id = ?", [id]);
                 if (order.length > 0) {
+                    const [productImages] = await db.query(
+                        `SELECT bp.product_image FROM bulk_order_items oi 
+                         JOIN bulk_products bp ON oi.bulk_product_id = bp.id 
+                         WHERE oi.order_id = ? AND bp.product_image IS NOT NULL AND bp.product_image != '' 
+                         LIMIT 1`,
+                        [id]
+                    );
+                    const firstProductImage = productImages.length > 0 ? productImages[0].product_image : null;
+
                     await notificationService.sendNotification({
                         userId: order[0].userID,
                         title: "Order Status Updated",
                         message: `Your order ${order[0].invoice_number} is now ${status}.`,
                         type: "order",
                         referenceId: id,
-                        pushOnly: true
+                        pushOnly: true,
+                        imageUrl: firstProductImage
                     });
                 }
             } catch (notifyError) {
@@ -439,6 +456,13 @@ export const updateBulkOrderService = async (db, id, userID, items) => {
             const partyName = users.length > 0 ? users[0].fullName : "Unknown Party";
             const invoiceNumber = orders[0].invoice_number;
 
+            const itemProductIds = [...new Set(items.map(i => i.bulk_product_id))];
+            const [itemProducts] = await conn.query(
+                "SELECT id, product_image FROM bulk_products WHERE id IN (?) AND product_image IS NOT NULL AND product_image != ''",
+                [itemProductIds]
+            );
+            const firstProductImage = itemProducts.length > 0 ? itemProducts[0].product_image : null;
+
             const [admins] = await conn.query("SELECT userID FROM user WHERE isAdmin = 1");
             for (const admin of admins) {
                 await notificationService.sendNotification({
@@ -447,7 +471,8 @@ export const updateBulkOrderService = async (db, id, userID, items) => {
                     message: `Party: ${partyName} updated their order ${invoiceNumber}`,
                     type: "order",
                     referenceId: id,
-                    pushOnly: true
+                    pushOnly: true,
+                    imageUrl: firstProductImage
                 });
             }
         } catch (notifyError) {
@@ -485,6 +510,16 @@ export const deleteBulkOrderService = async (db, id, userID) => {
             throw constructError("Only pending orders can be deleted", 400);
         }
 
+        // Get product images before deleting items (for cancellation notification)
+        const [orderItemImages] = await conn.query(
+            `SELECT bp.product_image FROM bulk_order_items oi 
+             JOIN bulk_products bp ON oi.bulk_product_id = bp.id 
+             WHERE oi.order_id = ? AND bp.product_image IS NOT NULL AND bp.product_image != '' 
+             LIMIT 1`,
+            [id]
+        );
+        const cancelledOrderImage = orderItemImages.length > 0 ? orderItemImages[0].product_image : null;
+
         // Hard delete items first (due to foreign key if any, or just good practice)
         await conn.query("DELETE FROM bulk_order_items WHERE order_id = ?", [id]);
 
@@ -507,7 +542,8 @@ export const deleteBulkOrderService = async (db, id, userID) => {
                     message: `Party: ${partyName} cancelled their order ${invoiceNumber}`,
                     type: "order",
                     referenceId: id,
-                    pushOnly: true
+                    pushOnly: true,
+                    imageUrl: cancelledOrderImage
                 });
             }
         } catch (notifyError) {

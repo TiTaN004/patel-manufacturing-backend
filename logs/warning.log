@@ -1,0 +1,10 @@
+[2026-05-14 16:32:40] 🚀 Starting deletion warning check...
+[2026-05-14 16:32:40] ✅ .env loaded
+[2026-05-14 16:33:34] 🚀 Starting deletion warning check...
+[2026-05-14 16:33:34] ✅ .env loaded
+[2026-05-14 16:33:34] ✅ Database connected
+[2026-05-14 16:33:34] 📦 Found 1 users to be deleted tomorrow
+[2026-05-14 16:33:34] 👤 User 31: TestBulkWarning (testwarn@bulk.com) - Deletion scheduled: 2026-05-15 11:02:36
+[2026-05-14 16:33:34] 📧 Warning email sent to: mananrathod45@gmail.com
+[2026-05-14 16:33:34] 📧 Warning emails sent to 1 of 2 admins
+[2026-05-14 16:33:34] ✅ Warning script completed successfully

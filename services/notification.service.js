@@ -24,7 +24,7 @@ export const notificationService = {
     /**
      * Create a notification and send push notification
      */
-    async sendNotification({ userId, title, message, type = 'system', referenceId = null, pushOnly = false }) {
+    async sendNotification({ userId, title, message, type = 'system', referenceId = null, pushOnly = false, imageUrl = null }) {
         try {
             let notificationId = null;
 
@@ -50,6 +50,7 @@ export const notificationService = {
                     notification: {
                         title: title,
                         body: message,
+                        imageUrl: imageUrl,
                     },
                     data: {
                         type: type,
