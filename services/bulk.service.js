@@ -249,8 +249,8 @@ export const createBulkOrderService = async (db, orderData) => {
                 return acc;
             }, {});
             const firstItemWithImage = items.find(item => imageMap[item.bulk_product_id]);
-            const firstProductImage = firstItemWithImage ? imageMap[firstItemWithImage.bulk_product_id] : null;
-
+            const firstProductImage = firstItemWithImage ? `${process.env.BASE_URL}${imageMap[firstItemWithImage.bulk_product_id].toString().replace(/ /g, "%20")}` : null;
+            console.log(firstProductImage)
             const itemString = items.map(item => {
                 const name = productMap[item.bulk_product_id] || "Product";
                 return `${name} (${item.quantity})`;

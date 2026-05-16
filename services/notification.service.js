@@ -46,12 +46,23 @@ export const notificationService = {
             if (tokens.length > 0 && admin.apps.length > 0) {
                 const fcmTokens = tokens.map(t => t.token);
 
+                const notificationPayload = {
+                    title: title,
+                    body: message,
+                };
+
+                if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
+                    try {
+                        const parsedUrl = new URL(imageUrl);
+                        notificationPayload.imageUrl = parsedUrl.href;
+                    } catch {
+                        const encodedUrl = encodeURI(imageUrl);
+                        notificationPayload.imageUrl = encodedUrl;
+                    }
+                }
+
                 const payload = {
-                    notification: {
-                        title: title,
-                        body: message,
-                        imageUrl: imageUrl,
-                    },
+                    notification: notificationPayload,
                     data: {
                         type: type,
                         referenceId: String(referenceId || ''),
