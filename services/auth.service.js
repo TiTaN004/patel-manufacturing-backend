@@ -71,7 +71,7 @@ export const rotateRefreshToken = async (db, refreshToken, deviceInfo, userAgent
 
     const newTokens = generateTokenPair(payload);
 
-    const newTokenHash = await hashPassword(newTokens.refreshToken);
+    const newTokenHash = hashToken(newTokens.refreshToken);
     const encryptedNewToken = encrypt(newTokens.refreshToken);
     const expiresAt = getRefreshTokenExpiry();
 

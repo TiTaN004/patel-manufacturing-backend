@@ -5,10 +5,6 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from "url";
 import morgan from "morgan";
-import { ApolloServer } from '@apollo/server';
-import { expressMiddleware } from '@as-integrations/express5';
-import { typeDefs } from './graphql/typeDefs.js';
-import { resolvers } from './graphql/resolvers.js';
 
 // Route imports
 import { categoryRoute } from "./routes/category.route.js";
@@ -29,10 +25,6 @@ import bulkMasterProductRoute from "./routes/bulk_master_product.route.js";
 import { notificationRoute } from "./routes/notification.route.js";
 import { appRoute } from "./routes/app.route.js";
 import { sendError } from "./utils/response.util.js";
-import { db } from "./db.js";
-import { softAuthMiddleware } from "./middleware/auth.middleware.js";
-import { GraphQLError } from "graphql";
-import { createDataLoader } from "./graphql/loaders/loader.js";
 
 dotenv.config();
 
