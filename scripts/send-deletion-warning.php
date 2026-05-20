@@ -9,29 +9,29 @@
 date_default_timezone_set('Asia/Kolkata');
 
 define('LOG_FILE', __DIR__ . '/../logs/warning.log');
-define('ENV_FILE', __DIR__ . '/../.env');
+// define('ENV_FILE', __DIR__ . '/../.env');
 define('LOG_MAX_LINES', 10000);
 
-function loadEnv($path)
-{
-    if (!file_exists($path))
-        return;
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        $line = trim($line);
-        if ($line === '' || strpos($line, '#') === 0)
-            continue;
-        if (strpos($line, '=') !== false) {
-            list($key, $value) = explode('=', $line, 2);
-            $key = trim($key);
-            $value = trim($value);
-            if ($key !== '') {
-                $_ENV[$key] = $value;
-                putenv("$key=$value");
-            }
-        }
-    }
-}
+// function loadEnv($path)
+// {
+//     if (!file_exists($path))
+//         return;
+//     $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+//     foreach ($lines as $line) {
+//         $line = trim($line);
+//         if ($line === '' || strpos($line, '#') === 0)
+//             continue;
+//         if (strpos($line, '=') !== false) {
+//             list($key, $value) = explode('=', $line, 2);
+//             $key = trim($key);
+//             $value = trim($value);
+//             if ($key !== '') {
+//                 $_ENV[$key] = $value;
+//                 putenv("$key=$value");
+//             }
+//         }
+//     }
+// }
 
 function logMessage($message)
 {
@@ -74,19 +74,19 @@ function runWarning()
 {
     logMessage("🚀 Starting deletion warning check...");
 
-    if (!file_exists(ENV_FILE)) {
-        logMessage("❌ .env file not found at: " . ENV_FILE);
-        exit(1);
-    }
+    // if (!file_exists(ENV_FILE)) {
+    //     logMessage("❌ .env file not found at: " . ENV_FILE);
+    //     exit(1);
+    // }
 
-    loadEnv(ENV_FILE);
-    logMessage("✅ .env loaded");
+    // loadEnv(ENV_FILE);
+    // logMessage("✅ .env loaded");
 
     $db = new mysqli(
-        $_ENV['DB_HOST'] ?? '103.212.120.166',
-        $_ENV['DB_USER'] ?? 'btakyall_pboxdb',
-        $_ENV['DB_PASSWORD'] ?? 'Pbox11:14',
-        $_ENV['DB_NAME'] ?? 'btakyall_patelbox'
+        '103.212.120.166',
+        'btakyall_pboxdb',
+        'Pbox11:14',
+        'btakyall_patelbox'
     );
 
     if ($db->connect_error) {
@@ -196,10 +196,10 @@ function sendErrorEmail($errorMessage)
     $adminResult = null;
     try {
         $db = new mysqli(
-            $_ENV['DB_HOST'] ?? '103.212.120.166',
-            $_ENV['DB_USER'] ?? 'btakyall_pboxdb',
-            $_ENV['DB_PASSWORD'] ?? 'Pbox11:14',
-            $_ENV['DB_NAME'] ?? 'btakyall_patelbox'
+            '103.212.120.166',
+            'btakyall_pboxdb',
+            'Pbox11:14',
+            'btakyall_patelbox'
         );
         if (!$db->connect_error) {
             $result = $db->query("SELECT emailID FROM user WHERE isAdmin = 1 AND isActive = 1 AND deleted_at IS NULL");
